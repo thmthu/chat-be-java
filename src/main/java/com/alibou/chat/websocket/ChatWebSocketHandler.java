@@ -13,7 +13,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.springframework.transaction.annotation.Transactional; // Thêm dòng này
+import com.alibou.chat.model.User; // Add this import
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -53,28 +55,60 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         String payload = message.getPayload();
         MessagePayload msg = objectMapper.readValue(payload, MessagePayload.class);
-        String chatRoomId = normalizeChatRoomId(msg.getSenderId(), msg.getReceiverId());
+        // Tìm tên người gửi từ senderId và thêm vào payload
+        userRepository.findById(msg.getSenderId()).ifPresent(user -> {
+            msg.setSenderName(user.getUsername());
+        });
+        
+        // Cập nhật payload với thông tin senderName mới
+        payload = objectMapper.writeValueAsString(msg);
+        
+        // Xác định chatRoomId (ưu tiên từ payload nếu có)
+        String chatRoomId;
+        boolean isGroupChat = false;
+        
+        if (msg.getChatRoomId() != null && !msg.getChatRoomId().isEmpty()) {
+            chatRoomId = msg.getChatRoomId();
+            isGroupChat = chatRoomId.startsWith("group_");
+        } else {
+            // Tạo chatRoomId cho chat 1-1
+            chatRoomId = normalizeChatRoomId(msg.getSenderId(), msg.getReceiverId());
+        }
+        
         sessionUserMap.put(session.getId(), msg.getSenderId());
-        System.out.println(" Received message: " + msg.getContent() + " from " + msg.getSenderId() + " to " + msg.getReceiverId() + "at" + chatRoomId);
+        System.out.println("📩 Received message: " + msg.getContent() + " from " + msg.getSenderId() + 
+                          " to room " + chatRoomId);
+        
         ChatRoom chatRoom = null;
+        
         // Tìm hoặc tạo ChatRoom
         try {
-             chatRoom = chatRoomRepository.findByChatRoomId(chatRoomId).orElse(null);
+            chatRoom = chatRoomRepository.findByChatRoomId(chatRoomId).orElse(null);
         } catch (Exception e) {
             System.err.println("Error finding chat room: " + e.getMessage());
-            e.printStackTrace();}
-         if (chatRoom == null) {
+            e.printStackTrace();
+        }
+        
+        if (chatRoom == null) {
+            // Đối với group chat, không tạo mới (nên đã tồn tại)
+            if (isGroupChat) {
+                throw new RuntimeException("Group chat " + chatRoomId + " not found");
+            }
+            
             System.out.println("Chat room not found, creating new one: " + chatRoomId);
-            // Create new chat room with both participants
+            // Tạo chat room mới cho chat 1-1
             List<String> participants = Arrays.asList(msg.getSenderId(), msg.getReceiverId());
             chatRoom = chatRoomService.createChatRoomWithParticipants(chatRoomId, participants);
-            System.out.println("===========================0k 2  ");
-
         } else {
-            // Make sure both users are participants
+            // Đảm bảo sender là participant
             chatRoomService.addParticipant(chatRoomId, msg.getSenderId());
-            chatRoomService.addParticipant(chatRoomId, msg.getReceiverId());
+            
+            // Nếu là chat 1-1, thêm cả receiver
+            if (!isGroupChat && msg.getReceiverId() != null) {
+                chatRoomService.addParticipant(chatRoomId, msg.getReceiverId());
+            }
         }
+        
         // Lưu message mới
         System.out.println("===========================0k   ");
         Message newMessage = new Message();
@@ -83,27 +117,62 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         newMessage.setSender(userRepository.findById(msg.getSenderId()).orElse(null));
         newMessage.setGroup(chatRoom);
         messageRepository.save(newMessage);
-
+    
         // Cập nhật latestMessage trong ChatRoom
         chatRoom.setLatestMessage(msg.getContent());
+        chatRoom.setLastestSender(msg.getSenderId());
+        chatRoom.setCreateAt(java.time.LocalDateTime.now()); // Thêm dòng này
         chatRoomRepository.save(chatRoom);
-
-        // Thêm người vào phòng nếu chưa có
-        chatRooms.computeIfAbsent(chatRoomId, k -> new ArrayList<>());
-        List<UserSession> sessions = chatRooms.get(chatRoomId);
-        if (sessions.stream().noneMatch(s -> s.session.getId().equals(session.getId()))) {
-            sessions.add(new UserSession(msg.getSenderId(), session));
-        }
-
-        // Gửi cho tất cả user trong chat room
-        for (UserSession userSession : sessions) {
-            if (userSession.session.isOpen()) {
-                userSession.session.sendMessage(new TextMessage(payload));
+    
+        // Đối với group chat, gửi tin nhắn đến tất cả user trong group
+        if (isGroupChat) {
+            sendMessageToGroupParticipants(chatRoomId, payload, session);
+        } else {
+            // Xử lý chat 1-1 như hiện tại
+            chatRooms.computeIfAbsent(chatRoomId, k -> new ArrayList<>());
+            List<UserSession> sessions = chatRooms.get(chatRoomId);
+            if (sessions.stream().noneMatch(s -> s.session.getId().equals(session.getId()))) {
+                sessions.add(new UserSession(msg.getSenderId(), session));
+            }
+    
+            // Gửi cho tất cả user trong chat room
+            for (UserSession userSession : sessions) {
+                if (userSession.session.isOpen()) {
+                    userSession.session.sendMessage(new TextMessage(payload));
+                }
             }
         }
     }
-
-
+    
+    // Thêm phương thức để gửi tin nhắn đến tất cả người tham gia trong group
+    private void sendMessageToGroupParticipants(String groupId, String payload, WebSocketSession senderSession) {
+        // Lấy tất cả participant trong group chat
+        chatRoomRepository.findByChatRoomId(groupId).ifPresent(chatRoom -> {
+            List<String> participantIds = chatRoom.getParticipants().stream()
+                .map(User::getId)
+                .toList();
+            
+            // Thêm người gửi vào phòng nếu chưa có
+            String senderId = sessionUserMap.get(senderSession.getId());
+            chatRooms.computeIfAbsent(groupId, k -> new ArrayList<>());
+            List<UserSession> roomSessions = chatRooms.get(groupId);
+            if (roomSessions.stream().noneMatch(s -> s.session.getId().equals(senderSession.getId()))) {
+                roomSessions.add(new UserSession(senderId, senderSession));
+            }
+            
+            // Gửi tin nhắn đến tất cả session trong phòng
+            for (UserSession userSession : roomSessions) {
+                if (userSession.session.isOpen()) {
+                    try {
+                        userSession.session.sendMessage(new TextMessage(payload));
+                    } catch (IOException e) {
+                        System.err.println("Error sending message: " + e.getMessage());
+                    }
+                }
+            }
+        });
+    }
+    
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String userId = sessionUserMap.remove(session.getId());
@@ -126,5 +195,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         private String receiverId;
         private String content;
         private String timestamp;
+        private String chatRoomId;
+        private String senderName; // Thêm trường này
+
     }
 }

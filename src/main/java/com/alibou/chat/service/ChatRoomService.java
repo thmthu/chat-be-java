@@ -76,7 +76,7 @@ public class ChatRoomService {
     @Transactional
 public ChatRoom createGroupChat(String groupName, List<String> userIds) {
     // Tạo chatRoomId cho group chat
-    List<String> sortedUserIds = new ArrayList<>(userIds);
+        List<String> sortedUserIds = new ArrayList<>(userIds);
         Collections.sort(sortedUserIds);
         String latestSender = userIds.get(userIds.size() - 1);
         
