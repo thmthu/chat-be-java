@@ -16,7 +16,9 @@ public class ChatMessageDto {
     private LocalDateTime sentAt;
     private String senderName;
     private String senderAvatar;
-    // private String messageId ;
+    private String messageId;
     // private String messageType; // "text", "image", etc.
     
+    // Remove this duplicate constructor
+    // The @AllArgsConstructor already creates this exact constructor
 }

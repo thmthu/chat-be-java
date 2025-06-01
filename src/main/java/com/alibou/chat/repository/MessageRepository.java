@@ -16,7 +16,7 @@ import java.util.List;
 // CRUD refers Create, Read, Update, Delete
 
 public interface MessageRepository extends CrudRepository<Message, String> {    // Trong MessageRepository.java
-@Query("SELECT new com.alibou.chat.DTO.ChatMessageDto(g.id, u.id, m.content, m.sentAt, u.username, u.avatar) " +
+@Query("SELECT new com.alibou.chat.DTO.ChatMessageDto(g.id, u.id, m.content, m.sentAt, u.username, u.avatar, m.id) " +
        "FROM Message m JOIN m.group g JOIN m.sender u " +
        "WHERE g.id = :id ORDER BY m.sentAt ASC")
 List<ChatMessageDto> findChatMessageDtosById(@Param("id") String chatRoomId);

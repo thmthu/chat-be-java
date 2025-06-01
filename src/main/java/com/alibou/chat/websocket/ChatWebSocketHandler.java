@@ -311,6 +311,40 @@ public void notifyChatDeleted(String chatRoomId, String deletedByUserId) {
         System.err.println("Error notifying chat deletion: " + e.getMessage());
     }
 }
+/**
+ * Sends a message to all participants in a chat room
+ */
+public void sendMessageToAllChatParticipants(String chatRoomId, Map<String, Object> payload) {
+    try {
+        String jsonPayload = objectMapper.writeValueAsString(payload);
+        TextMessage message = new TextMessage(jsonPayload);
+        
+        chatRoomRepository.findByChatRoomId(chatRoomId).ifPresent(chatRoom -> {
+            for (User participant : chatRoom.getParticipants()) {
+                String userId = participant.getId();
+                
+                // Find all sessions for this user
+                for (Map.Entry<String, String> entry : sessionUserMap.entrySet()) {
+                    if (entry.getValue().equals(userId)) {
+                        String sessionId = entry.getKey();
+                        // Find the session and send message
+                        for (WebSocketSession session : allSessions) {
+                            if (session.getId().equals(sessionId) && session.isOpen()) {
+                                try {
+                                    session.sendMessage(message);
+                                } catch (IOException e) {
+                                    System.err.println("Error sending message to session: " + e.getMessage());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (IOException e) {
+        System.err.println("Error serializing notification: " + e.getMessage());
+    }
+}
 
 // ... rest of existing code ...
 
