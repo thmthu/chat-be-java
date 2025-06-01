@@ -1,6 +1,7 @@
 package com.alibou.chat.repository;
 
 import com.alibou.chat.DTO.ChatMessageDto;
+import com.alibou.chat.model.ChatRoom;
 import com.alibou.chat.model.Message;
 
 import org.springframework.data.jpa.repository.Query;
@@ -19,4 +20,6 @@ public interface MessageRepository extends CrudRepository<Message, String> {    
        "FROM Message m JOIN m.group g JOIN m.sender u " +
        "WHERE g.id = :id ORDER BY m.sentAt ASC")
 List<ChatMessageDto> findChatMessageDtosById(@Param("id") String chatRoomId);
+void deleteByGroup(ChatRoom chatRoom);
+
 }

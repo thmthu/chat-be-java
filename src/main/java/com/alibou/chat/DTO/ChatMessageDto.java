@@ -16,5 +16,7 @@ public class ChatMessageDto {
     private LocalDateTime sentAt;
     private String senderName;
     private String senderAvatar;
+    // private String messageId ;
+    // private String messageType; // "text", "image", etc.
     
 }
