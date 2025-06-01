@@ -29,7 +29,7 @@ public class Message {
     @ManyToOne
     @JoinColumn(name = "chat_room_id")
     private ChatRoom group;
-
+    
     @OneToMany(mappedBy = "message")
     private List<Attachment> attachments;
 }

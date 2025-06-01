@@ -1,11 +1,12 @@
 package com.alibou.chat.model;
 import jakarta.persistence.*;
+import lombok.Data;
 
 @Entity
+@Data
 @Table(name = "attachments")
 public class Attachment {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
     private String fileName;
