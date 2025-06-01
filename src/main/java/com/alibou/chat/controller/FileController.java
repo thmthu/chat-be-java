@@ -89,7 +89,7 @@ public ResponseEntity<FileUploadResponse> uploadFile(
         System.out.println("File download URI: " + fileDownloadUri);
         // Create a message associated with this file
         Message message = new Message();
-        message.setContent("[FILE] " + originalFileName);
+        message.setContent("FILE="+ originalFileName + "=" + fileDownloadUri);
         message.setSender(sender);
         message.setGroup(chatRoom);
         message.setSentAt(LocalDateTime.now());
