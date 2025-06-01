@@ -15,4 +15,6 @@ public interface UserRepository extends CrudRepository<User, String> {
     // Thêm vào UserRepository.java
     @Query("SELECT new com.alibou.chat.DTO.UserBasicInfoDto(u.id, u.username) FROM User u")
     List<UserBasicInfoDto> findAllBasicInfo();
+    // Add this method to find a user by username
+    Optional<User> findByUsername(String username);
 }

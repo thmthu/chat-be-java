@@ -12,18 +12,18 @@ import java.util.*;
 @AllArgsConstructor
 public class User {
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
+    @Column(name = "username", nullable = false)
     private String username;
 
+    @Column(name = "avatar", nullable = true)
     private String avatar;
 
-    @Column(unique = true, nullable = false)
+    @Column(name = "email", nullable = true)
     private String email;
 
-    private String bio;
-
+    @Column(name = "password", nullable = false)
     private String password;
 
     @ManyToMany(mappedBy = "participants")
