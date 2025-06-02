@@ -62,9 +62,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             String userId = extractUserIdFromQuery(query);
             if (userId != null) {
                 sessionUserMap.put(session.getId(), userId);
+                broadcastUserStatus(userId, true);
                 System.out.println("User " + userId + " connected with session " + session.getId());
             }
         }
+
     }
 
     // Helper method to extract userId from query string
@@ -264,6 +266,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         String userId = sessionUserMap.remove(session.getId());
         allSessions.remove(session);
+        broadcastUserStatus(userId, false);
 
         // Remove from all rooms
         for (List<UserSession> sessions : chatRooms.values()) {
@@ -345,6 +348,31 @@ public void sendMessageToAllChatParticipants(String chatRoomId, Map<String, Obje
         System.err.println("Error serializing notification: " + e.getMessage());
     }
 }
+public List<String> getOnlineUsers() {
+    // Return unique user IDs that have at least one active session
+    return new ArrayList<>(new HashSet<>(sessionUserMap.values()));
+}
+
+// ...existing code...
+
+private void broadcastUserStatus(String userId, boolean online) {
+    Map<String, Object> status = new HashMap<>();
+    status.put("type", "USER_STATUS");
+    status.put("userId", userId);
+    status.put("online", online);
+    try {
+        String json = objectMapper.writeValueAsString(status);
+        TextMessage msg = new TextMessage(json);
+        for (WebSocketSession session : allSessions) {
+            if (session.isOpen()) {
+                session.sendMessage(msg);
+            }
+        }
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+}
+
 
 // ... rest of existing code ...
 

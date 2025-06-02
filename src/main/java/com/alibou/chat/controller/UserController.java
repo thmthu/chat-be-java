@@ -9,7 +9,8 @@ import com.alibou.chat.repository.UserRepository;
 import com.alibou.chat.service.UserService;
 
 import java.util.List;
-
+import com.alibou.chat.websocket.ChatWebSocketHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,15 @@ public class UserController {
     private UserRepository userRepository;
     @Autowired
     private UserService userService;
+
+     @Autowired
+    private ChatWebSocketHandler chatWebSocketHandler;
+
+    @GetMapping("/online-users")
+    public @ResponseBody List<String> getOnlineUsers() {
+        System.out.println("Fetching online users" + chatWebSocketHandler.getOnlineUsers());
+        return chatWebSocketHandler.getOnlineUsers();
+    }
 
     @PostMapping(path="/add") // Map ONLY POST Requests
     public @ResponseBody String addNewUser (@RequestParam String name
